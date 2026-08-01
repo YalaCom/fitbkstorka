@@ -25,7 +25,9 @@ const state = {
   selectedBet: null,
   selectedUser: null,
   selectedFinishEvent: null,
-  refreshTimer: null
+  refreshTimer: null,
+  eventsRequestId: 0,
+  betsRequestId: 0
 };
 
 const documents = {
@@ -222,7 +224,15 @@ async function loadStatus() {
 }
 
 async function loadEvents() {
-  state.events = await rpc("bkf_events", { p_token: state.token });
+  const requestId = ++state.eventsRequestId;
+  const tokenAtStart = state.token;
+  const result = await rpc("bkf_events", { p_token: tokenAtStart });
+
+  if (requestId !== state.eventsRequestId || tokenAtStart !== state.token) {
+    return;
+  }
+
+  state.events = result;
   const host = $("#eventsList");
 
   if (!state.events.length) {
@@ -304,9 +314,15 @@ async function handleBet(event) {
     });
 
     $("#betDialog").close();
-    toast("Ставка принята");
+    toast("Ставка сохранена в базе");
     await refreshCurrentUser();
-    await refreshAll();
+    await Promise.all([
+      loadMyBets(),
+      loadEvents(),
+      loadProfileStats(),
+      loadLeaderboard(),
+      loadNotifications()
+    ]);
   } catch (error) {
     toast(error.message, "error");
   } finally {
@@ -315,7 +331,14 @@ async function handleBet(event) {
 }
 
 async function loadMyBets() {
-  const bets = await rpc("bkf_my_bets", { p_token: state.token });
+  const requestId = ++state.betsRequestId;
+  const tokenAtStart = state.token;
+  const bets = await rpc("bkf_my_bets", { p_token: tokenAtStart });
+
+  if (requestId !== state.betsRequestId || tokenAtStart !== state.token) {
+    return;
+  }
+
   const host = $("#myBetsList");
 
   if (!bets.length) {
@@ -724,6 +747,25 @@ async function saveEvent(event) {
     return;
   }
 
+  const normalizedTitles = outcomes.map((outcome) =>
+    outcome.title.trim().toLowerCase()
+  );
+
+  if (normalizedTitles.some((title) => !title)) {
+    toast("У каждого исхода должно быть название", "error");
+    return;
+  }
+
+  if (new Set(normalizedTitles).size !== normalizedTitles.length) {
+    toast("Названия исходов не должны повторяться", "error");
+    return;
+  }
+
+  if (outcomes.some((outcome) => !Number.isFinite(outcome.odds) || outcome.odds <= 1)) {
+    toast("Каждый коэффициент должен быть больше 1", "error");
+    return;
+  }
+
   const button = $("#saveEventButton");
   setButtonBusy(button, true, "Сохраняем...");
 
@@ -974,6 +1016,18 @@ async function init() {
 
 window.addEventListener("unhandledrejection", (event) => {
   console.error(event.reason);
+});
+
+document.addEventListener("visibilitychange", () => {
+  if (!document.hidden && state.token) {
+    refreshAll({ silent: true }).catch(() => {});
+  }
+});
+
+window.addEventListener("online", () => {
+  if (state.token) {
+    refreshAll({ silent: true }).catch(() => {});
+  }
 });
 
 init();
