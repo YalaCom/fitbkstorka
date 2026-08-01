@@ -1,0 +1,400 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#080705">
+  <meta name="color-scheme" content="dark">
+  <title>БкФит</title>
+  <link rel="stylesheet" href="./styles.css?v=20260801">
+</head>
+<body>
+  <div id="toastHost" class="toast-host" aria-live="polite"></div>
+  <div id="fatalError" class="fatal-error hidden"></div>
+
+  <section id="authScreen" class="auth-screen">
+    <div class="auth-wrap">
+      <header class="brand brand-large">
+        <div class="brand-mark">БФ</div>
+        <div>
+          <h1>БкФит</h1>
+          <p>Закрытая игра среди друзей</p>
+        </div>
+      </header>
+
+      <div class="panel auth-panel">
+        <div class="segmented">
+          <button class="segment active" type="button" data-auth-tab="login">Вход</button>
+          <button class="segment" type="button" data-auth-tab="register">Регистрация</button>
+        </div>
+
+        <form id="loginForm" class="form-stack" autocomplete="on">
+          <label class="field">
+            <span>Имя</span>
+            <input id="loginName" name="username" maxlength="40" autocomplete="username" required>
+          </label>
+
+          <label class="field">
+            <span>Код из 4 цифр</span>
+            <input id="loginPin" name="pin" type="password" inputmode="numeric" pattern="[0-9]{4}" maxlength="4" autocomplete="current-password" required>
+          </label>
+
+          <button id="loginSubmit" class="button button-gold" type="submit">Войти</button>
+        </form>
+
+        <form id="registerForm" class="form-stack hidden" autocomplete="off">
+          <label class="field">
+            <span>Имя</span>
+            <input id="registerName" maxlength="40" required>
+          </label>
+
+          <label class="field">
+            <span>Придумайте код из 4 цифр</span>
+            <input id="registerPin" type="password" inputmode="numeric" pattern="[0-9]{4}" maxlength="4" required>
+          </label>
+
+          <label class="check-line">
+            <input id="termsCheck" type="checkbox" required>
+            <span>Принимаю <button class="inline-link" type="button" data-document="terms">пользовательское соглашение</button></span>
+          </label>
+
+          <label class="check-line">
+            <input id="privacyCheck" type="checkbox" required>
+            <span>Согласен на <button class="inline-link" type="button" data-document="privacy">обработку данных</button></span>
+          </label>
+
+          <button id="registerSubmit" class="button button-gold" type="submit">Создать аккаунт</button>
+          <p class="form-note">Новый пользователь получает 1 000 $.</p>
+        </form>
+      </div>
+    </div>
+  </section>
+
+  <div id="appShell" class="app-shell hidden">
+    <header class="topbar">
+      <div class="brand brand-small">
+        <div class="brand-mark">БФ</div>
+        <div>
+          <strong>БкФит</strong>
+          <span id="headerName">—</span>
+        </div>
+      </div>
+
+      <div class="topbar-actions">
+        <button id="notificationsButton" class="icon-button" type="button" aria-label="Уведомления">
+          <span aria-hidden="true">●</span>
+          <b id="notificationCount" class="notification-count hidden">0</b>
+        </button>
+        <button id="logoutButton" class="button button-ghost button-small" type="button">Выйти</button>
+      </div>
+    </header>
+
+    <main class="content">
+      <section id="page-home" class="page active">
+        <article class="panel balance-panel">
+          <div>
+            <span class="eyebrow">Баланс</span>
+            <strong id="homeBalance" class="balance-value">0 $</strong>
+          </div>
+
+          <div class="status-summary">
+            <span><b id="rowsCount">0</b> строк</span>
+            <span><b id="documentsCount">0</b> документов</span>
+            <small id="statusUpdated">Обновлено: —</small>
+          </div>
+        </article>
+
+        <div class="section-header">
+          <div>
+            <span class="eyebrow">Лента</span>
+            <h2>Активные события</h2>
+          </div>
+          <button id="refreshButton" class="button button-ghost button-small" type="button">Обновить</button>
+        </div>
+
+        <div id="eventsList" class="event-feed"></div>
+      </section>
+
+      <section id="page-bets" class="page">
+        <div class="section-header">
+          <div>
+            <span class="eyebrow">История</span>
+            <h2>Мои ставки</h2>
+          </div>
+        </div>
+        <div id="myBetsList" class="stack-list"></div>
+      </section>
+
+      <section id="page-top" class="page">
+        <div class="section-header">
+          <div>
+            <span class="eyebrow">Рейтинг</span>
+            <h2>Топ игроков</h2>
+          </div>
+        </div>
+        <div id="leaderboardList" class="stack-list"></div>
+      </section>
+
+      <section id="page-profile" class="page">
+        <article class="panel profile-card">
+          <div id="profileAvatar" class="avatar">—</div>
+          <div>
+            <span class="eyebrow">Профиль</span>
+            <h2 id="profileName">—</h2>
+            <p id="profileRole">Пользователь</p>
+          </div>
+        </article>
+
+        <div class="metrics">
+          <article class="metric"><span>Баланс</span><strong id="profileBalance">0 $</strong></article>
+          <article class="metric"><span>Ставок</span><strong id="profileBets">0</strong></article>
+          <article class="metric"><span>Побед</span><strong id="profileWins">0</strong></article>
+          <article class="metric"><span>Винрейт</span><strong id="profileWinRate">0%</strong></article>
+          <article class="metric"><span>Поставлено</span><strong id="profileWagered">0 $</strong></article>
+          <article class="metric"><span>Выиграно</span><strong id="profileWon">0 $</strong></article>
+        </div>
+
+        <article class="panel info-card">
+          <h3>О проекте</h3>
+          <p>БкФит — шуточный закрытый сайт. Все суммы внутри сайта виртуальные и не имеют денежной ценности.</p>
+          <button class="inline-link inline-link-left" type="button" data-document="terms">Открыть соглашение</button>
+        </article>
+      </section>
+
+      <section id="page-admin" class="page">
+        <div class="section-header">
+          <div>
+            <span class="eyebrow">Управление</span>
+            <h2>Админ-панель</h2>
+          </div>
+        </div>
+
+        <div class="segmented admin-segmented">
+          <button class="segment active" type="button" data-admin-tab="users">Пользователи</button>
+          <button class="segment" type="button" data-admin-tab="events">События</button>
+          <button class="segment" type="button" data-admin-tab="status">Показатели</button>
+        </div>
+
+        <section id="admin-users" class="admin-pane active">
+          <div class="toolbar">
+            <input id="userSearch" placeholder="Поиск по имени">
+            <button id="reloadUsersButton" class="button button-ghost button-small" type="button">Обновить</button>
+          </div>
+          <div id="adminUsersList" class="stack-list stack-gap"></div>
+        </section>
+
+        <section id="admin-events" class="admin-pane">
+          <button id="createEventButton" class="button button-gold button-full" type="button">Создать событие</button>
+          <div id="adminEventsList" class="stack-list stack-gap"></div>
+        </section>
+
+        <section id="admin-status" class="admin-pane">
+          <form id="statusForm" class="panel form-stack status-form">
+            <label class="field">
+              <span>Строки</span>
+              <input id="statusRows" type="number" min="0" required>
+            </label>
+            <label class="field">
+              <span>Документы</span>
+              <input id="statusDocuments" type="number" min="0" required>
+            </label>
+            <button class="button button-gold" type="submit">Сохранить показатели</button>
+          </form>
+        </section>
+      </section>
+    </main>
+
+    <nav class="bottom-nav" aria-label="Основная навигация">
+      <button class="nav-button active" type="button" data-page="home"><span>⌂</span><small>Главная</small></button>
+      <button class="nav-button" type="button" data-page="bets"><span>▣</span><small>Ставки</small></button>
+      <button class="nav-button" type="button" data-page="top"><span>♜</span><small>Топ</small></button>
+      <button class="nav-button" type="button" data-page="profile"><span>●</span><small>Профиль</small></button>
+      <button id="adminNavButton" class="nav-button hidden" type="button" data-page="admin"><span>◆</span><small>Админ</small></button>
+    </nav>
+  </div>
+
+  <dialog id="betDialog" class="dialog">
+    <form id="betForm" class="form-stack">
+      <header class="dialog-header">
+        <div>
+          <span class="eyebrow">Новая ставка</span>
+          <h3 id="betOutcomeName">—</h3>
+          <p id="betEventName">—</p>
+        </div>
+        <button class="dialog-close" type="button" data-close-dialog="betDialog">×</button>
+      </header>
+
+      <div class="summary-row">
+        <span>Коэффициент</span>
+        <strong id="betOdds">—</strong>
+      </div>
+
+      <label class="field">
+        <span>Сумма</span>
+        <input id="betAmount" type="number" min="1" step="1" required>
+      </label>
+
+      <div class="quick-grid">
+        <button type="button" data-quick-amount="100">100</button>
+        <button type="button" data-quick-amount="250">250</button>
+        <button type="button" data-quick-amount="500">500</button>
+        <button id="betAllButton" type="button">Всё</button>
+      </div>
+
+      <div class="summary-row">
+        <span>Возможный выигрыш</span>
+        <strong id="possibleWin">0 $</strong>
+      </div>
+
+      <button class="button button-gold" type="submit">Поставить</button>
+    </form>
+  </dialog>
+
+  <dialog id="eventDialog" class="dialog dialog-wide">
+    <form id="eventForm" class="form-stack">
+      <header class="dialog-header">
+        <div>
+          <span class="eyebrow">Администратор</span>
+          <h3 id="eventDialogTitle">Новое событие</h3>
+        </div>
+        <button class="dialog-close" type="button" data-close-dialog="eventDialog">×</button>
+      </header>
+
+      <input id="editingEventId" type="hidden">
+
+      <label class="field">
+        <span>Название</span>
+        <input id="eventTitle" maxlength="120" required>
+      </label>
+
+      <label class="field">
+        <span>Описание</span>
+        <textarea id="eventDescription" maxlength="500"></textarea>
+      </label>
+
+      <label class="field">
+        <span>Закрытие ставок</span>
+        <input id="eventClosesAt" type="datetime-local">
+      </label>
+
+      <div class="subsection-header">
+        <strong>Исходы</strong>
+        <button id="addOutcomeButton" class="button button-ghost button-small" type="button">Добавить исход</button>
+      </div>
+
+      <div id="outcomeEditor" class="outcome-editor"></div>
+
+      <button id="saveEventButton" class="button button-gold" type="submit">Сохранить событие</button>
+    </form>
+  </dialog>
+
+  <dialog id="finishEventDialog" class="dialog">
+    <form id="finishEventForm" class="form-stack">
+      <header class="dialog-header">
+        <div>
+          <span class="eyebrow">Расчёт</span>
+          <h3 id="finishEventName">—</h3>
+        </div>
+        <button class="dialog-close" type="button" data-close-dialog="finishEventDialog">×</button>
+      </header>
+
+      <label class="field">
+        <span>Победивший исход</span>
+        <select id="winnerOutcome" required></select>
+      </label>
+
+      <button class="button button-gold" type="submit">Завершить и рассчитать</button>
+    </form>
+  </dialog>
+
+  <dialog id="userDialog" class="dialog dialog-wide">
+    <div class="dialog-header">
+      <div>
+        <span class="eyebrow">Пользователь</span>
+        <h3 id="userDialogName">—</h3>
+        <p id="userDialogMeta">—</p>
+      </div>
+      <button class="dialog-close" type="button" data-close-dialog="userDialog">×</button>
+    </div>
+
+    <div class="admin-user-grid">
+      <section class="panel inner-panel">
+        <h4>Баланс</h4>
+        <div class="form-stack">
+          <label class="field">
+            <span>Изменение</span>
+            <input id="balanceDelta" type="number" step="1" placeholder="500 или -200">
+          </label>
+          <label class="field">
+            <span>Причина</span>
+            <input id="balanceReason" maxlength="120">
+          </label>
+          <button id="changeBalanceButton" class="button button-gold" type="button">Применить</button>
+        </div>
+      </section>
+
+      <section class="panel inner-panel">
+        <h4>Доступ</h4>
+        <div class="form-stack">
+          <label class="field">
+            <span>Новый PIN</span>
+            <input id="newUserPin" type="password" inputmode="numeric" maxlength="4">
+          </label>
+          <button id="resetPinButton" class="button button-ghost" type="button">Установить PIN</button>
+          <button id="toggleRoleButton" class="button button-ghost" type="button">Сделать администратором</button>
+          <button id="toggleBlockButton" class="button button-danger" type="button">Заблокировать</button>
+        </div>
+      </section>
+    </div>
+
+    <section>
+      <div class="subsection-header"><strong>Последние операции</strong></div>
+      <div id="userTransactions" class="stack-list"></div>
+    </section>
+
+    <section>
+      <div class="subsection-header"><strong>Последние ставки</strong></div>
+      <div id="userBets" class="stack-list"></div>
+    </section>
+  </dialog>
+
+  <dialog id="eventBetsDialog" class="dialog dialog-wide">
+    <div class="dialog-header">
+      <div>
+        <span class="eyebrow">Ставки</span>
+        <h3 id="eventBetsTitle">—</h3>
+      </div>
+      <button class="dialog-close" type="button" data-close-dialog="eventBetsDialog">×</button>
+    </div>
+    <div id="eventBetsList" class="stack-list"></div>
+  </dialog>
+
+  <dialog id="notificationsDialog" class="dialog">
+    <div class="dialog-header">
+      <div>
+        <span class="eyebrow">Лента</span>
+        <h3>Уведомления</h3>
+      </div>
+      <button class="dialog-close" type="button" data-close-dialog="notificationsDialog">×</button>
+    </div>
+    <div id="notificationsList" class="stack-list"></div>
+  </dialog>
+
+  <dialog id="documentDialog" class="dialog dialog-wide">
+    <div class="dialog-header">
+      <div>
+        <span class="eyebrow">БкФит</span>
+        <h3 id="documentTitle">Документ</h3>
+      </div>
+      <button class="dialog-close" type="button" data-close-dialog="documentDialog">×</button>
+    </div>
+    <article id="documentBody" class="document-body"></article>
+  </dialog>
+
+  <noscript>
+    <div class="noscript">Для работы БкФит необходимо включить JavaScript.</div>
+  </noscript>
+
+  <script type="module" src="./app.js?v=20260801"></script>
+</body>
+</html>
