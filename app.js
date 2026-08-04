@@ -27,8 +27,120 @@ const state = {
   selectedFinishEvent: null,
   refreshTimer: null,
   eventsRequestId: 0,
-  betsRequestId: 0
+  betsRequestId: 0,
+  playerStatsRequestId: 0,
+  leaderboardMode: "balance",
+  expressLegs: [],
+  bonuses: null
 };
+
+const BET_STATUS_LABELS = {
+  active: "Активна",
+  won: "Выигрыш",
+  lost: "Проигрыш",
+  refunded: "Возврат",
+  cashed_out: "Выкуплена"
+};
+
+function betStatusText(status) {
+  return BET_STATUS_LABELS[status] || status;
+}
+
+const THEME_STORAGE_KEY = "bkfit_theme";
+const HIDE_BALANCE_STORAGE_KEY = "bkfit_hide_balance";
+const ALLOWED_THEMES = new Set(["gold", "white", "mono", "blue"]);
+
+const ACHIEVEMENT_DEFINITIONS = [
+  { icon:"🎟", title:"Первый шаг", description:"Сделать первую ставку", metric:"total_bets", target:1, tier:"basic" },
+  { icon:"🔟", title:"Завсегдатай", description:"Сделать 10 ставок", metric:"total_bets", target:10, tier:"basic" },
+  { icon:"🏁", title:"Первая победа", description:"Выиграть первую ставку", metric:"wins", target:1, tier:"basic" },
+  { icon:"🏆", title:"Десять побед", description:"Выиграть 10 ставок", metric:"wins", target:10, tier:"special" },
+  { icon:"👑", title:"Двадцать пять побед", description:"Выиграть 25 ставок", metric:"wins", target:25, tier:"gold" },
+  { icon:"🚀", title:"Охотник за X10", description:"Выиграть с коэффициентом 10+", metric:"max_winning_odds", target:10, tier:"special" },
+  { icon:"🥉", title:"Бронзовая серия", description:"3 победы подряд", metric:"max_win_streak", target:3, tier:"bronze" },
+  { icon:"🥈", title:"Серебряная серия", description:"4 победы подряд", metric:"max_win_streak", target:4, tier:"silver" },
+  { icon:"🥇", title:"Золотая серия", description:"5 побед подряд", metric:"max_win_streak", target:5, tier:"gold" },
+  { icon:"🔥", title:"Несокрушимый", description:"7 побед подряд", metric:"max_win_streak", target:7, tier:"gold" },
+  { icon:"💪", title:"Крупная ставка", description:"Поставить 500 $ одной ставкой", metric:"max_bet", target:500, tier:"special", moneyProgress:true },
+  { icon:"💰", title:"Большой куш", description:"Выиграть 1000 $ одной ставкой", metric:"max_win", target:1000, tier:"special", moneyProgress:true },
+  { icon:"📈", title:"Капитал", description:"Достичь баланса 5000 $", metric:"max_balance", target:5000, tier:"gold", moneyProgress:true },
+  { icon:"🧾", title:"Первый экспресс", description:"Сделать первый экспресс", metric:"express_bets", target:1, tier:"basic" },
+  { icon:"✅", title:"Экспресс прошёл", description:"Выиграть экспресс", metric:"express_wins", target:1, tier:"special" },
+  { icon:"⚡", title:"Экспресс X10", description:"Выиграть экспресс с коэффициентом 10+", metric:"max_express_winning_odds", target:10, tier:"special" },
+  { icon:"🌪", title:"Безумный экспресс", description:"Выиграть экспресс с коэффициентом 25+", metric:"max_express_winning_odds", target:25, tier:"gold" },
+  { icon:"🎡", title:"Колесо запущено", description:"Получить первый приз", metric:"wheel_spins", target:1, tier:"basic" },
+  { icon:"💎", title:"Джекпот", description:"Получить 500 $ в колесе", metric:"wheel_500_wins", target:1, tier:"gold" },
+  { icon:"🛡", title:"Под защитой", description:"Получить возврат по страховке", metric:"insurance_saves", target:1, tier:"special" },
+  { icon:"🔵", title:"Бустер", description:"Выиграть ставку с бустом", metric:"boosted_wins", target:1, tier:"special" },
+  { icon:"🤝", title:"Первый друг", description:"Пригласить одного участника", metric:"referrals", target:1, tier:"basic" },
+  { icon:"👥", title:"Своя команда", description:"Пригласить трёх участников", metric:"referrals", target:3, tier:"gold" }
+];
+
+function getSavedTheme() {
+  try {
+    const saved = localStorage.getItem(THEME_STORAGE_KEY);
+    return ALLOWED_THEMES.has(saved) ? saved : "gold";
+  } catch {
+    return "gold";
+  }
+}
+
+function isBalanceHidden() {
+  try {
+    return localStorage.getItem(HIDE_BALANCE_STORAGE_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function applyTheme(theme, { save = true } = {}) {
+  const safeTheme = ALLOWED_THEMES.has(theme) ? theme : "gold";
+  document.documentElement.dataset.theme = safeTheme;
+
+  const themeColors = {
+    gold: "#080705",
+    white: "#f5f5f5",
+    mono: "#050505",
+    blue: "#070b14"
+  };
+
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (meta) meta.setAttribute("content", themeColors[safeTheme]);
+
+  if (save) {
+    try {
+      localStorage.setItem(THEME_STORAGE_KEY, safeTheme);
+    } catch {
+      // Тема всё равно применена на текущей странице.
+    }
+  }
+
+  $$("[data-theme-option]").forEach((button) => {
+    const active = button.dataset.themeOption === safeTheme;
+    button.classList.toggle("active", active);
+    button.setAttribute("aria-pressed", active ? "true" : "false");
+  });
+}
+
+function applyBalancePrivacy(hidden, { save = true } = {}) {
+  document.documentElement.dataset.hideBalance = hidden ? "true" : "false";
+
+  const toggle = $("#hideBalanceToggle");
+  if (toggle) toggle.checked = hidden;
+
+  if (save) {
+    try {
+      localStorage.setItem(HIDE_BALANCE_STORAGE_KEY, hidden ? "1" : "0");
+    } catch {
+      // Настройка всё равно действует на текущей странице.
+    }
+  }
+}
+
+function initAppearance() {
+  applyTheme(getSavedTheme(), { save: false });
+  applyBalancePrivacy(isBalanceHidden(), { save: false });
+}
 
 const documents = {
   terms: {
@@ -39,9 +151,12 @@ const documents = {
       <p>Все балансы, ставки, выигрыши и знак $ внутри сайта являются виртуальными. Они не являются настоящими деньгами, не продаются и не выводятся.</p>
       <h4>2. Управление событиями</h4>
       <p>Администратор создаёт, редактирует, закрывает, завершает и отменяет события. При отмене события активные ставки возвращаются на виртуальный баланс.</p>
-      <h4>3. Доступ</h4>
+      <h4>3. Выкуп ставки</h4>
+      <p>Пользователь может один раз досрочно выкупить активную ставку и получить 30% от её первоначальной суммы. После выкупа ставка окончательно закрывается и больше не участвует в выигрыше или возврате.</p>
+      <h4>4. Экспрессы и бонусы</h4><p>Экспресс выигрывает только при успешном расчёте всех его исходов. Бонусы колеса являются виртуальными и применяются по правилам сайта.</p><h4>5. Реферальная программа</h4><p>Награда начисляется только за нового участника, который активирует код в установленный срок до первой ставки.</p>
+      <h4>6. Доступ</h4>
       <p>Пользователь отвечает за сохранность имени и PIN-кода. Администратор может установить пользователю новый PIN для восстановления доступа.</p>
-      <h4>4. Согласие</h4>
+      <h4>7. Согласие</h4>
       <p>Создавая аккаунт, пользователь подтверждает, что понимает развлекательный и некоммерческий характер сайта.</p>
     `
   },
@@ -111,11 +226,14 @@ async function refreshCurrentUser() {
 async function refreshAll({ silent = false } = {}) {
   try {
     await Promise.all([
+      refreshCurrentUser(),
       loadStatus(),
       loadEvents(),
       loadMyBets(),
       loadLeaderboard(),
       loadProfileStats(),
+      loadAchievements(),
+      loadRewardsProfile(),
       loadNotifications()
     ]);
 
@@ -252,15 +370,12 @@ async function loadEvents() {
 
       <div class="outcome-list">
         ${event.outcomes.map((outcome) => `
-          <button
-            class="outcome-button"
-            type="button"
-            data-bet-event="${event.id}"
-            data-bet-outcome="${outcome.id}"
-          >
-            <span>${escapeHtml(outcome.title)}</span>
-            <strong>${Number(outcome.odds).toFixed(2)}</strong>
-          </button>
+          <div class="outcome-actions">
+            <button class="outcome-button" type="button" data-bet-event="${event.id}" data-bet-outcome="${outcome.id}">
+              <span>${escapeHtml(outcome.title)}</span><strong>${Number(outcome.odds).toFixed(2)}</strong>
+            </button>
+            <button class="express-add-button" type="button" data-express-event="${event.id}" data-express-outcome="${outcome.id}" aria-label="Добавить в экспресс">+</button>
+          </div>
         `).join("")}
       </div>
 
@@ -284,6 +399,41 @@ async function loadEvents() {
       openBetDialog(button.dataset.betEvent, button.dataset.betOutcome);
     });
   });
+}
+
+  $$('[data-express-event]').forEach((button) => {
+    button.addEventListener('click', () => addExpressLeg(button.dataset.expressEvent, button.dataset.expressOutcome));
+  });
+
+
+function addExpressLeg(eventId, outcomeId) {
+  const event = state.events.find((item) => item.id === eventId);
+  const outcome = event?.outcomes.find((item) => item.id === outcomeId);
+  if (!event || !outcome) return;
+  if (state.expressLegs.some((leg) => leg.eventId === eventId)) {
+    toast("В экспрессе можно выбрать только один исход одного события", "error"); return;
+  }
+  if (state.expressLegs.length >= 5) { toast("В экспрессе максимум 5 исходов", "error"); return; }
+  state.expressLegs.push({eventId,outcomeId,eventTitle:event.title,outcomeTitle:outcome.title,odds:Number(outcome.odds)});
+  renderExpressBuilder();
+}
+function renderExpressBuilder() {
+  const box=$("#expressBuilder"), host=$("#expressLegs");
+  box.classList.toggle("hidden", state.expressLegs.length===0);
+  host.innerHTML=state.expressLegs.map((leg,i)=>`<div class="express-leg"><div><strong>${escapeHtml(leg.outcomeTitle)}</strong><small>${escapeHtml(leg.eventTitle)}</small></div><span>${leg.odds.toFixed(2)}</span><button type="button" data-remove-express="${i}">×</button></div>`).join("");
+  const odds=state.expressLegs.reduce((v,l)=>v*l.odds,1);
+  $("#expressOdds").textContent=odds.toFixed(2);
+  $("#expressPossibleWin").textContent=money(Number($("#expressAmount").value||0)*odds);
+  $$('[data-remove-express]').forEach(b=>b.addEventListener('click',()=>{state.expressLegs.splice(Number(b.dataset.removeExpress),1);renderExpressBuilder();}));
+}
+async function handleExpress(event) {
+  event.preventDefault();
+  if (state.expressLegs.length<2) { toast("Для экспресса нужно минимум 2 исхода", "error"); return; }
+  const button=$("#expressForm button[type='submit']"); setButtonBusy(button,true,"Принимаем...");
+  try {
+    await rpc("bkf_place_express",{p_token:state.token,p_legs:state.expressLegs.map(l=>({event_id:l.eventId,outcome_id:l.outcomeId})),p_amount:Number($("#expressAmount").value)});
+    state.expressLegs=[]; $("#expressAmount").value=""; renderExpressBuilder(); toast("Экспресс принят"); await refreshAll();
+  } catch(error){toast(error.message,"error");} finally {setButtonBusy(button,false);}
 }
 
 function openBetDialog(eventId, outcomeId) {
@@ -320,6 +470,7 @@ async function handleBet(event) {
       loadMyBets(),
       loadEvents(),
       loadProfileStats(),
+      loadAchievements(),
       loadLeaderboard(),
       loadNotifications()
     ]);
@@ -331,69 +482,208 @@ async function handleBet(event) {
 }
 
 async function loadMyBets() {
-  const requestId = ++state.betsRequestId;
-  const tokenAtStart = state.token;
-  const bets = await rpc("bkf_my_bets", { p_token: tokenAtStart });
-
-  if (requestId !== state.betsRequestId || tokenAtStart !== state.token) {
-    return;
-  }
-
-  const host = $("#myBetsList");
-
-  if (!bets.length) {
-    host.innerHTML = emptyState("Вы ещё не делали ставок.");
-    return;
-  }
-
-  const labels = {
-    active: "Активна",
-    won: "Выигрыш",
-    lost: "Проигрыш",
-    refunded: "Возврат"
-  };
-
-  host.innerHTML = bets.map((bet) => `
-    <article class="list-card">
-      <div class="list-row">
-        <div>
-          <h3>${escapeHtml(bet.event_title)}</h3>
-          <p>${escapeHtml(bet.outcome_title)} · коэффициент ${Number(bet.odds_at_bet).toFixed(2)}</p>
-        </div>
-        <div class="list-actions">
-          <strong>${money(bet.amount)}</strong>
-          <span class="list-meta">${labels[bet.status] || bet.status}</span>
-        </div>
-      </div>
-      <div class="event-footer">
-        <span>${formatDate(bet.created_at)}</span>
-        <span>Возможный выигрыш: ${money(bet.potential_win)}</span>
-      </div>
-    </article>
-  `).join("");
+  const requestId=++state.betsRequestId, tokenAtStart=state.token;
+  const [bets,expresses,bonuses]=await Promise.all([
+    rpc("bkf_my_bets",{p_token:tokenAtStart}), rpc("bkf_my_express_bets",{p_token:tokenAtStart}), rpc("bkf_bonus_status",{p_token:tokenAtStart})
+  ]);
+  if(requestId!==state.betsRequestId||tokenAtStart!==state.token)return;
+  state.bonuses=bonuses; const host=$("#myBetsList");
+  const singleHtml=bets.map(bet=>{const active=bet.status==='active',free=Number(bonuses.free_cashouts||0)>0;return `<article class="list-card"><div class="list-row"><div><h3>${escapeHtml(bet.event_title)}</h3><p>${escapeHtml(bet.outcome_title)} · коэффициент ${Number(bet.odds_at_bet).toFixed(2)}${bet.boosted?' · БУСТ':''}${bet.insured?' · СТРАХОВКА':''}</p></div><div class="list-actions"><strong>${money(bet.amount)}</strong><span class="list-meta">${escapeHtml(betStatusText(bet.status))}</span>${active&&bet.cashout_available?`<button class="button button-ghost button-small" data-cashout-bet="${bet.id}" data-cashout-amount="${Number(bet.cashout_offer||0)}">Выкупить за ${money(bet.cashout_offer)}</button>`:''}${active&&free?`<button class="button button-gold button-small" data-free-cashout-type="single" data-free-cashout-id="${bet.id}">Бесплатный выкуп</button>`:''}</div></div><div class="event-footer"><span>${formatDate(bet.created_at)}</span><span>${bet.status==='cashed_out'?`Возвращено: ${money(bet.cashout_amount)}`:`Возможный выигрыш: ${money(bet.potential_win)}`}</span></div></article>`;}).join('');
+  const expressHtml=expresses.map(ex=>{const active=ex.status==='active',free=Number(bonuses.free_cashouts||0)>0;return `<article class="list-card express-history"><div class="list-row"><div><span class="status-pill">Экспресс · ${ex.legs.length} исхода</span><h3>Общий коэффициент ${Number(ex.total_odds).toFixed(2)}</h3><div class="express-history-legs">${ex.legs.map(l=>`<p>${escapeHtml(l.event_title)} — ${escapeHtml(l.outcome_title)} (${Number(l.odds).toFixed(2)})</p>`).join('')}</div></div><div class="list-actions"><strong>${money(ex.amount)}</strong><span class="list-meta">${escapeHtml(betStatusText(ex.status))}</span>${active?`<button class="button button-ghost button-small" data-cashout-express="${ex.id}" data-cashout-amount="${Number(ex.cashout_offer||0)}">Выкупить за ${money(ex.cashout_offer)}</button>`:''}${active&&free?`<button class="button button-gold button-small" data-free-cashout-type="express" data-free-cashout-id="${ex.id}">Бесплатный выкуп</button>`:''}</div></div><div class="event-footer"><span>${formatDate(ex.created_at)}</span><span>Возможный выигрыш: ${money(ex.potential_win)}</span></div></article>`;}).join('');
+  host.innerHTML=(expressHtml+singleHtml)||emptyState("Вы ещё не делали ставок.");
+  $$('[data-cashout-bet]').forEach(b=>b.addEventListener('click',()=>cashoutBet(b.dataset.cashoutBet,Number(b.dataset.cashoutAmount),b)));
+  $$('[data-cashout-express]').forEach(b=>b.addEventListener('click',()=>cashoutExpress(b.dataset.cashoutExpress,Number(b.dataset.cashoutAmount),b)));
+  $$('[data-free-cashout-id]').forEach(b=>b.addEventListener('click',()=>freeCashout(b.dataset.freeCashoutType,b.dataset.freeCashoutId,b)));
 }
 
+async function cashoutBet(betId, cashoutAmount, button) {
+  const confirmed = confirm(
+    `Выкупить ставку за ${money(cashoutAmount)}?\n\n` +
+    "Эта сумма вернётся на баланс, а ставка больше не сможет выиграть или получить возврат."
+  );
+
+  if (!confirmed) return;
+
+  setButtonBusy(button, true, "Выкупаем...");
+
+  try {
+    const result = await rpc("bkf_cashout_bet", {
+      p_token: state.token,
+      p_bet_id: betId
+    });
+
+    toast(`Ставка выкуплена. Возвращено ${money(result.cashout_amount)}`);
+
+    await refreshCurrentUser();
+    await Promise.all([
+      loadMyBets(),
+      loadEvents(),
+      loadProfileStats(),
+      loadAchievements(),
+      loadLeaderboard(),
+      loadNotifications()
+    ]);
+  } catch (error) {
+    toast(error.message, "error");
+    setButtonBusy(button, false);
+  }
+}
+
+async function cashoutExpress(id,amount,button){if(!confirm(`Выкупить экспресс за ${money(amount)}?`))return;setButtonBusy(button,true,"Выкупаем...");try{await rpc("bkf_cashout_express",{p_token:state.token,p_express_id:id});toast("Экспресс выкуплен");await refreshAll();}catch(e){toast(e.message,"error");setButtonBusy(button,false);}}
+async function freeCashout(type,id,button){if(!confirm("Использовать бесплатный выкуп и вернуть всю сумму?"))return;setButtonBusy(button,true,"Выкупаем...");try{await rpc("bkf_use_free_cashout",{p_token:state.token,p_bet_type:type,p_bet_id:id});toast("Бесплатный выкуп использован");await refreshAll();}catch(e){toast(e.message,"error");setButtonBusy(button,false);}}
+
 async function loadLeaderboard() {
-  const players = await rpc("bkf_leaderboard", { p_token: state.token });
+  const players = await rpc("bkf_leaderboard_v2", { p_token: state.token, p_mode: state.leaderboardMode });
   const host = $("#leaderboardList");
 
   host.innerHTML = players.length ? players.map((player, index) => `
-    <article class="list-card">
+    <button
+      class="list-card leaderboard-player-card"
+      type="button"
+      data-player-stats="${player.id}"
+      aria-label="Открыть статистику игрока ${escapeHtml(player.display_name)}"
+    >
       <div class="list-row">
-        <div>
-          <h3>${index + 1}. ${escapeHtml(player.display_name)}</h3>
-          <p>
-            ${player.wins} побед · ${player.losses} поражений ·
-            ${player.total_bets} ставок · ${player.win_rate}%
-          </p>
+        <div class="leaderboard-player-main">
+          <div class="leaderboard-rank">${index + 1}</div>
+          <div>
+            <h3>${escapeHtml(player.display_name)}</h3>
+            <p>
+              ${player.wins} побед · ${player.losses} поражений ·
+              ${player.total_bets} ставок · ${player.win_rate}%
+            </p>
+          </div>
         </div>
-        <div class="list-actions">
-          <strong>${money(player.balance)}</strong>
-          <span class="list-meta">выиграно ${money(player.total_won)}</span>
+
+        <div class="list-actions leaderboard-player-side">
+          <strong>${state.leaderboardMode === "balance" ? money(player.balance) : state.leaderboardMode === "winrate" ? `${player.win_rate}%` : `${player.losses} поражений`}</strong>
+          <span class="list-meta">баланс ${money(player.balance)}</span>
+          <span class="leaderboard-open">Открыть статистику ›</span>
         </div>
       </div>
-    </article>
+    </button>
   `).join("") : emptyState("В рейтинге пока никого нет.");
+
+  $$("[data-player-stats]").forEach((button) => {
+    button.addEventListener("click", () => {
+      openPlayerStats(button.dataset.playerStats);
+    });
+  });
+}
+
+async function openPlayerStats(userId) {
+  const requestId = ++state.playerStatsRequestId;
+  const dialog = $("#playerStatsDialog");
+
+  $("#playerStatsAvatar").textContent = "—";
+  $("#playerStatsName").textContent = "Загрузка...";
+  $("#playerStatsMeta").textContent = "Получаем статистику";
+  $("#playerStatsContent").innerHTML =
+    `<div class="loading-card">Загрузка статистики...</div>`;
+
+  if (!dialog.open) {
+    dialog.showModal();
+  }
+
+  try {
+    const stats = await rpc("bkf_public_player_stats", {
+      p_token: state.token,
+      p_user_id: userId
+    });
+
+    if (requestId !== state.playerStatsRequestId) return;
+
+    $("#playerStatsAvatar").textContent = initials(stats.display_name);
+    $("#playerStatsName").textContent = stats.display_name;
+    $("#playerStatsMeta").textContent =
+      `${stats.role === "admin" ? "Администратор" : "Игрок"} · на сайте с ${formatDate(stats.registered_at)}`;
+
+    const bestOdds = Number(stats.best_winning_odds || 0);
+
+    $("#playerStatsContent").innerHTML = `
+      <section class="public-player-balance">
+        <span>Текущий баланс</span>
+        <strong>${money(stats.balance)}</strong>
+      </section>
+
+      <div class="public-player-metrics">
+        <article class="metric">
+          <span>Всего ставок</span>
+          <strong>${Number(stats.total_bets || 0)}</strong>
+        </article>
+
+        <article class="metric">
+          <span>Активных</span>
+          <strong>${Number(stats.active_bets || 0)}</strong>
+        </article>
+
+        <article class="metric metric-success">
+          <span>Побед</span>
+          <strong>${Number(stats.wins || 0)}</strong>
+        </article>
+
+        <article class="metric metric-danger">
+          <span>Поражений</span>
+          <strong>${Number(stats.losses || 0)}</strong>
+        </article>
+
+        <article class="metric">
+          <span>Винрейт</span>
+          <strong>${Number(stats.win_rate || 0)}%</strong>
+        </article>
+
+        <article class="metric">
+          <span>Всего поставлено</span>
+          <strong>${money(stats.total_wagered)}</strong>
+        </article>
+
+        <article class="metric">
+          <span>Всего выиграно</span>
+          <strong>${money(stats.total_won)}</strong>
+        </article>
+
+        <article class="metric">
+          <span>Макс. выигрыш</span>
+          <strong>${money(stats.max_win)}</strong>
+        </article>
+
+        <article class="metric">
+          <span>Макс. ставка</span>
+          <strong>${money(stats.max_bet)}</strong>
+        </article>
+
+        <article class="metric metric-highlight">
+          <span>Макс. баланс</span>
+          <strong>${money(stats.max_balance)}</strong>
+        </article>
+      </div>
+
+      <section class="public-player-extra">
+        <div>
+          <span>Лучший выигрышный коэффициент</span>
+          <strong>${bestOdds > 0 ? bestOdds.toFixed(2) : "—"}</strong>
+        </div>
+        <div>
+          <span>Возвратов</span>
+          <strong>${Number(stats.refunded_bets || 0)}</strong>
+        </div>
+        <div>
+          <span>Выкупленных ставок</span>
+          <strong>${Number(stats.cashed_out_bets || 0)}</strong>
+        </div>
+      </section>
+
+      <p class="public-player-note">
+        Винрейт считается только по ставкам со статусом «Выигрыш» или «Проигрыш».
+      </p>
+    `;
+  } catch (error) {
+    if (requestId !== state.playerStatsRequestId) return;
+
+    $("#playerStatsName").textContent = "Не удалось загрузить";
+    $("#playerStatsMeta").textContent = "Попробуйте открыть профиль ещё раз";
+    $("#playerStatsContent").innerHTML = emptyState(error.message);
+  }
 }
 
 async function loadProfileStats() {
@@ -404,6 +694,70 @@ async function loadProfileStats() {
   $("#profileWinRate").textContent = `${stats.win_rate}%`;
   $("#profileWagered").textContent = money(stats.total_wagered);
   $("#profileWon").textContent = money(stats.total_won);
+}
+
+async function loadRewardsProfile(){
+  const data=await rpc("bkf_rewards_profile",{p_token:state.token}); state.bonuses=data;
+  $("#referralCode").textContent=data.referral_code;
+  $("#referralInput").disabled=!data.can_redeem_referral; $("#redeemReferralButton").disabled=!data.can_redeem_referral;
+  $("#referralStatus").textContent=data.can_redeem_referral?"Код доступно активировать до первой ставки и в течение 24 часов.":data.referred_by?"Реферальный код уже активирован.":"Вы можете приглашать друзей, но ввод чужого кода для этого аккаунта уже недоступен.";
+  const parts=[]; if(data.free_cashouts)parts.push(`бесплатный выкуп: ${data.free_cashouts}`); if(data.boost_tokens)parts.push(`буст +20%: ${data.boost_tokens}`); if(data.insurance_tokens)parts.push(`страховка: ${data.insurance_tokens}`);
+  $("#wheelInventory").textContent=parts.length?`Ваши бонусы — ${parts.join(" · ")}`:"Активных бонусов пока нет";
+  $("#spinWheelButton").disabled=!data.can_spin; $("#wheelTimer").textContent=data.can_spin?"Можно крутить":`Следующая попытка: ${formatDate(data.next_spin_at)}`;
+}
+async function spinWheel(){const b=$("#spinWheelButton");setButtonBusy(b,true,"Крутим...");$("#wheelVisual").classList.add("spinning");try{const r=await rpc("bkf_spin_wheel",{p_token:state.token});setTimeout(()=>$("#wheelVisual").classList.remove("spinning"),900);toast(`Приз: ${r.label}`);await Promise.all([refreshCurrentUser(),loadRewardsProfile(),loadAchievements()]);}catch(e){$("#wheelVisual").classList.remove("spinning");toast(e.message,"error");}finally{setButtonBusy(b,false);}}
+async function redeemReferral(event){event.preventDefault();const b=$("#redeemReferralButton");setButtonBusy(b,true,"Активируем...");try{await rpc("bkf_redeem_referral",{p_token:state.token,p_code:$("#referralInput").value.trim()});toast("Код активирован. Вам обоим начислено 1 000 $");await Promise.all([refreshCurrentUser(),loadRewardsProfile(),loadAchievements(),loadLeaderboard()]);}catch(e){toast(e.message,"error");}finally{setButtonBusy(b,false);}}
+
+async function loadAchievements() {
+  const host = $("#achievementsList");
+  if (!host) return;
+
+  try {
+    const metrics = await rpc("bkf_achievements", { p_token: state.token });
+    let unlockedCount = 0;
+
+    host.innerHTML = ACHIEVEMENT_DEFINITIONS.map((achievement) => {
+      const current = Math.max(0, Number(metrics[achievement.metric] || 0));
+      const unlocked = current >= achievement.target;
+      if (unlocked) unlockedCount += 1;
+
+      const progress = Math.min(100, (current / achievement.target) * 100);
+      const currentLabel = achievement.moneyProgress
+        ? money(current)
+        : achievement.metric === "max_winning_odds"
+          ? current.toFixed(2)
+          : String(Math.floor(current));
+
+      const targetLabel = achievement.moneyProgress
+        ? money(achievement.target)
+        : achievement.metric === "max_winning_odds"
+          ? achievement.target.toFixed(2)
+          : String(achievement.target);
+
+      return `
+        <article class="achievement-card ${unlocked ? "unlocked" : "locked"} tier-${achievement.tier}">
+          <div class="achievement-top">
+            <span class="achievement-icon" aria-hidden="true">${achievement.icon}</span>
+            <span class="achievement-state">${unlocked ? "Получено" : "Закрыто"}</span>
+          </div>
+          <h3>${escapeHtml(achievement.title)}</h3>
+          <p>${escapeHtml(achievement.description)}</p>
+          <div class="achievement-progress" aria-label="Прогресс ${currentLabel} из ${targetLabel}">
+            <span style="width:${progress}%"></span>
+          </div>
+          <small>${currentLabel} / ${targetLabel}</small>
+        </article>
+      `;
+    }).join("");
+
+    $("#achievementsCounter").textContent =
+      `${unlockedCount} / ${ACHIEVEMENT_DEFINITIONS.length}`;
+  } catch (error) {
+    console.error("Не удалось загрузить достижения:", error);
+    host.innerHTML = emptyState(
+      "Достижения пока не загрузились. Остальные данные сайта работают."
+    );
+  }
 }
 
 async function loadNotifications() {
@@ -525,7 +879,7 @@ async function openUserDialog(userId) {
               </div>
               <div class="list-actions">
                 <strong>${money(bet.amount)}</strong>
-                <span class="list-meta">${escapeHtml(bet.status)}</span>
+                <span class="list-meta">${escapeHtml(betStatusText(bet.status))}</span>
               </div>
             </div>
           </article>
@@ -870,7 +1224,7 @@ async function openEventBets(eventId) {
           </div>
           <div class="list-actions">
             <strong>${money(bet.amount)}</strong>
-            <span class="list-meta">${escapeHtml(bet.status)}</span>
+            <span class="list-meta">${escapeHtml(betStatusText(bet.status))}</span>
           </div>
         </div>
         <div class="event-footer">
@@ -915,6 +1269,19 @@ function switchPage(pageName) {
     });
   }
 
+  if (pageName === "profile" && state.token) {
+    Promise.all([
+      refreshCurrentUser(),
+      loadProfileStats(),
+      loadAchievements(),
+      loadRewardsProfile()
+    ]).catch(() => {});
+  }
+
+  if (pageName === "home" && state.token) {
+    refreshCurrentUser().catch(() => {});
+  }
+
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
@@ -944,6 +1311,24 @@ function bindEvents() {
   $("#logoutButton").addEventListener("click", handleLogout);
   $("#refreshButton").addEventListener("click", () => refreshAll().catch(() => {}));
   $("#notificationsButton").addEventListener("click", openNotifications);
+  $("#expressForm").addEventListener("submit", handleExpress);
+  $("#expressAmount").addEventListener("input", renderExpressBuilder);
+  $("#clearExpressButton").addEventListener("click",()=>{state.expressLegs=[];renderExpressBuilder();});
+  $("#spinWheelButton").addEventListener("click", spinWheel);
+  $("#referralForm").addEventListener("submit", redeemReferral);
+  $("#copyReferralButton").addEventListener("click",async()=>{try{await navigator.clipboard.writeText($("#referralCode").textContent);toast("Код скопирован");}catch{toast("Скопируйте код вручную","error");}});
+  $$('[data-leaderboard-mode]').forEach(button=>button.addEventListener('click',()=>{$$('[data-leaderboard-mode]').forEach(x=>x.classList.remove('active'));button.classList.add('active');state.leaderboardMode=button.dataset.leaderboardMode;loadLeaderboard().catch(e=>toast(e.message,'error'));}));
+
+  $$("[data-theme-option]").forEach((button) => {
+    button.addEventListener("click", () => {
+      applyTheme(button.dataset.themeOption);
+      toast("Оформление сохранено");
+    });
+  });
+
+  $("#hideBalanceToggle").addEventListener("change", (event) => {
+    applyBalancePrivacy(event.target.checked);
+  });
 
   $$(".nav-button").forEach((button) => {
     button.addEventListener("click", () => switchPage(button.dataset.page));
@@ -1006,6 +1391,7 @@ function bindEvents() {
 
 async function init() {
   try {
+    initAppearance();
     bindEvents();
     await restoreSession();
   } catch (error) {
@@ -1018,16 +1404,21 @@ window.addEventListener("unhandledrejection", (event) => {
   console.error(event.reason);
 });
 
+function refreshAfterReturn() {
+  if (!state.token) return;
+  refreshAll({ silent: true }).catch((error) => {
+    console.error("Не удалось обновить данные после возвращения:", error);
+  });
+}
+
 document.addEventListener("visibilitychange", () => {
-  if (!document.hidden && state.token) {
-    refreshAll({ silent: true }).catch(() => {});
+  if (!document.hidden) {
+    refreshAfterReturn();
   }
 });
 
-window.addEventListener("online", () => {
-  if (state.token) {
-    refreshAll({ silent: true }).catch(() => {});
-  }
-});
+window.addEventListener("pageshow", refreshAfterReturn);
+window.addEventListener("focus", refreshAfterReturn);
+window.addEventListener("online", refreshAfterReturn);
 
 init();

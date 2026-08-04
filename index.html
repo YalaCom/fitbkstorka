@@ -3,10 +3,20 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#080705">
-  <meta name="color-scheme" content="dark">
+  <meta id="themeColorMeta" name="theme-color" content="#080705">
+  <meta name="color-scheme" content="dark light">
+  <script>
+    try {
+      const savedTheme = localStorage.getItem("bkfit_theme") || "gold";
+      const hideBalance = localStorage.getItem("bkfit_hide_balance") === "1";
+      document.documentElement.dataset.theme = savedTheme;
+      document.documentElement.dataset.hideBalance = hideBalance ? "true" : "false";
+    } catch {
+      document.documentElement.dataset.theme = "gold";
+    }
+  </script>
   <title>БкФит</title>
-  <link rel="stylesheet" href="./styles.css?v=20260801">
+  <link rel="stylesheet" href="./styles.css?v=20260804-mega-1">
 </head>
 <body>
   <div id="toastHost" class="toast-host" aria-live="polite"></div>
@@ -113,6 +123,20 @@
         </div>
 
         <div id="eventsList" class="event-feed"></div>
+
+        <aside id="expressBuilder" class="panel express-builder hidden">
+          <div class="subsection-header">
+            <div><span class="eyebrow">Экспресс</span><h3>Купон экспресса</h3></div>
+            <button id="clearExpressButton" class="button button-ghost button-small" type="button">Очистить</button>
+          </div>
+          <div id="expressLegs" class="express-legs"></div>
+          <div class="express-total"><span>Общий коэффициент</span><strong id="expressOdds">1.00</strong></div>
+          <form id="expressForm" class="form-stack">
+            <label class="field"><span>Сумма экспресса</span><input id="expressAmount" type="number" min="1" step="1" inputmode="decimal" required></label>
+            <div class="summary-row"><span>Возможный выигрыш</span><strong id="expressPossibleWin">0 $</strong></div>
+            <button class="button button-gold" type="submit">Поставить экспресс</button>
+          </form>
+        </aside>
       </section>
 
       <section id="page-bets" class="page">
@@ -131,6 +155,11 @@
             <span class="eyebrow">Рейтинг</span>
             <h2>Топ игроков</h2>
           </div>
+        </div>
+        <div class="segmented leaderboard-tabs">
+          <button class="segment active" type="button" data-leaderboard-mode="balance">По балансу</button>
+          <button class="segment" type="button" data-leaderboard-mode="winrate">По винрейту</button>
+          <button class="segment" type="button" data-leaderboard-mode="losses">По поражениям</button>
         </div>
         <div id="leaderboardList" class="stack-list"></div>
       </section>
@@ -153,6 +182,82 @@
           <article class="metric"><span>Поставлено</span><strong id="profileWagered">0 $</strong></article>
           <article class="metric"><span>Выиграно</span><strong id="profileWon">0 $</strong></article>
         </div>
+
+        <article class="panel info-card fortune-card">
+          <div class="subsection-header">
+            <div><span class="eyebrow">Раз в 24 часа</span><h3>Колесо фортуны</h3></div>
+            <span id="wheelTimer" class="list-meta">Загрузка...</span>
+          </div>
+          <div id="wheelVisual" class="fortune-wheel">БФ</div>
+          <p id="wheelInventory" class="form-note">Ваши бонусы загружаются...</p>
+          <button id="spinWheelButton" class="button button-gold" type="button">Крутить колесо</button>
+        </article>
+
+        <article class="panel info-card referral-card">
+          <div class="subsection-header"><div><span class="eyebrow">Приглашения</span><h3>Реферальная программа</h3></div></div>
+          <p>Отправьте другу свой код. После ввода кода вы оба получите по <strong>1 000 $</strong>.</p>
+          <div class="referral-code-row">
+            <code id="referralCode">Загрузка...</code>
+            <button id="copyReferralButton" class="button button-ghost button-small" type="button">Копировать</button>
+          </div>
+          <form id="referralForm" class="form-stack">
+            <label class="field"><span>Код пригласившего</span><input id="referralInput" maxlength="12" autocomplete="off" placeholder="Например AB12CD34"></label>
+            <button id="redeemReferralButton" class="button button-gold" type="submit">Активировать код</button>
+          </form>
+          <p id="referralStatus" class="form-note">Код могут активировать только новые участники в течение 24 часов и до первой ставки.</p>
+        </article>
+
+        <article class="panel info-card appearance-card">
+          <div class="subsection-header">
+            <div>
+              <span class="eyebrow">Настройки</span>
+              <h3>Оформление сайта</h3>
+            </div>
+          </div>
+
+          <div class="theme-grid" aria-label="Выбор оформления">
+            <button class="theme-option" type="button" data-theme-option="gold">
+              <span class="theme-preview theme-preview-gold" aria-hidden="true"></span>
+              <span><strong>Золото</strong><small>Текущий стиль</small></span>
+            </button>
+
+            <button class="theme-option" type="button" data-theme-option="white">
+              <span class="theme-preview theme-preview-white" aria-hidden="true"></span>
+              <span><strong>Белая</strong><small>Чёрная окантовка</small></span>
+            </button>
+
+            <button class="theme-option" type="button" data-theme-option="mono">
+              <span class="theme-preview theme-preview-mono" aria-hidden="true"></span>
+              <span><strong>Чёрно-белая</strong><small>Белая окантовка</small></span>
+            </button>
+
+            <button class="theme-option" type="button" data-theme-option="blue">
+              <span class="theme-preview theme-preview-blue" aria-hidden="true"></span>
+              <span><strong>Синяя</strong><small>Вместо золота</small></span>
+            </button>
+          </div>
+
+          <label class="privacy-setting">
+            <input id="hideBalanceToggle" type="checkbox">
+            <span>
+              <strong>Скрывать мой баланс</strong>
+              <small>Вместо суммы будут показаны точки</small>
+            </span>
+          </label>
+        </article>
+
+        <section class="achievements-section">
+          <div class="section-header achievements-header">
+            <div>
+              <span class="eyebrow">Награды</span>
+              <h2>Достижения</h2>
+            </div>
+            <span id="achievementsCounter" class="achievement-counter">0 / 9</span>
+          </div>
+          <div id="achievementsList" class="achievement-grid">
+            <div class="loading-card">Загрузка достижений...</div>
+          </div>
+        </section>
 
         <article class="panel info-card">
           <h3>О проекте</h3>
@@ -358,6 +463,25 @@
     </section>
   </dialog>
 
+
+  <dialog id="playerStatsDialog" class="dialog dialog-wide">
+    <div class="dialog-header player-dialog-header">
+      <div class="player-dialog-person">
+        <div id="playerStatsAvatar" class="avatar player-dialog-avatar">—</div>
+        <div>
+          <span class="eyebrow">Статистика игрока</span>
+          <h3 id="playerStatsName">Загрузка...</h3>
+          <p id="playerStatsMeta">—</p>
+        </div>
+      </div>
+      <button class="dialog-close" type="button" data-close-dialog="playerStatsDialog">×</button>
+    </div>
+
+    <div id="playerStatsContent" class="player-stats-content">
+      <div class="loading-card">Загрузка статистики...</div>
+    </div>
+  </dialog>
+
   <dialog id="eventBetsDialog" class="dialog dialog-wide">
     <div class="dialog-header">
       <div>
@@ -395,6 +519,6 @@
     <div class="noscript">Для работы БкФит необходимо включить JavaScript.</div>
   </noscript>
 
-  <script type="module" src="./app.js?v=20260801"></script>
+  <script type="module" src="./app.js?v=20260804-mega-1"></script>
 </body>
 </html>
