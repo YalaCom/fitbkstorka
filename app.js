@@ -1422,3 +1422,31 @@ window.addEventListener("focus", refreshAfterReturn);
 window.addEventListener("online", refreshAfterReturn);
 
 init();
+// Исправление кнопок добавления исхода в экспресс.
+// Вставляется в самый конец app.js.
+
+if (!window.__bkfitExpressButtonFix) {
+  window.__bkfitExpressButtonFix = true;
+
+  document.addEventListener("click", (event) => {
+    const target = event.target;
+
+    if (!(target instanceof Element)) {
+      return;
+    }
+
+    const button = target.closest("[data-express-event]");
+
+    if (!button) {
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+
+    addExpressLeg(
+      button.dataset.expressEvent,
+      button.dataset.expressOutcome
+    );
+  });
+}
